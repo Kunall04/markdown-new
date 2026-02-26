@@ -18,7 +18,7 @@ export async function fetchHTML(url) {
 
     return {
       html: response.data,
-      finalUrl: response.request.res.responseUrl || url, // URL after redirects
+      finalUrl: response.request.res.responseUrl || url, //URL after redirects
       contentType: response.headers['content-type'] || '',
       status: response.status,
     };
@@ -41,8 +41,8 @@ export async function fetchHTML(url) {
   }
 }
 
-const result=await fetchHTML('https://example.com');
-console.log(result.status);
-console.log(result.data);
-console.log(result.html.length);
-console.log(result.html.substring(0,200));
+// const result=await fetchHTML('https://example.com');
+// console.log(result.status);
+// console.log(result.data);
+// console.log(result.html.length);
+// console.log(result.html.substring(0,200));
