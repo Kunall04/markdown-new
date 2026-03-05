@@ -7,3 +7,4 @@ frontend/.env
 frontend/dist/
 
 .DS_Store
+/CONTEXT.md
