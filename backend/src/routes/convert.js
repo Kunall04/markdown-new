@@ -1,79 +1,103 @@
-import { Router } from 'express';
+import express from 'express';
+import limiter from '../middleware/rateLimiter.js';
 import { sanitizeURL } from '../utils/sanitize.js';
 import { cacheGet, cacheSet } from '../services/cache.js';
 import { fetchHTML } from '../services/fetcher.js';
 import { detectPageType } from '../services/detector.js';
 import { convert } from '../services/converter.js';
 
-const router = Router();
+const router = express.Router();
+const CACHE_TTL_SECONDS = 3600;
 
-router.post('/convert', async (req, res) => {
-  const startTime = Date.now();
+function buildCacheKey(url) {
+  return `md:${url}`;
+}
 
-  // Step 1 — Validate URL
-  const { url } = req.body;
-  const check = sanitizeURL(url);
-  if (!check.valid) {
-    return res.status(400).json({ error: check.reason });
-  }
-  const cleanUrl = check.url;
+router.post('/convert', limiter, async (req, res, next) => {
+  const startedAt = Date.now();
 
   try {
-    // Step 2 — Check cache
-    const cached = await cacheGet(cleanUrl);
-    if (cached) {
+    const validation = sanitizeURL(req.body?.url);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.reason });
+    }
+
+    const requestedUrl = validation.url;
+    const requestedKey = buildCacheKey(requestedUrl);
+
+    const cachedRequested = await cacheGet(requestedKey);
+    if (cachedRequested) {
       return res.json({
-        ...cached,
-        meta: { ...cached.meta, cacheHit: true, time: Date.now() - startTime },
+        ...cachedRequested,
+        metadata: {
+          ...cachedRequested.metadata,
+          cache: {
+            ...(cachedRequested.metadata?.cache || {}),
+            hit: true,
+            key: requestedKey,
+          },
+          timings: {
+            ...(cachedRequested.metadata?.timings || {}),
+            totalMs: Date.now() - startedAt,
+          },
+        },
       });
     }
 
-    // Step 3 — Fetch HTML
-    const { html, finalUrl, contentType } = await fetchHTML(cleanUrl);
+    const fetched = await fetchHTML(requestedUrl);
+    const finalUrl = sanitizeURL(fetched.finalUrl).url || fetched.finalUrl;
+    const finalKey = buildCacheKey(finalUrl);
 
-    // If redirected (e.g. t.co → real URL), check cache for final URL too
-    if (finalUrl !== cleanUrl) {
-      const cachedFinal = await cacheGet(finalUrl);
+    if (finalKey !== requestedKey) {
+      const cachedFinal = await cacheGet(finalKey);
       if (cachedFinal) {
-        await cacheSet(cleanUrl, cachedFinal);
         return res.json({
           ...cachedFinal,
-          meta: { ...cachedFinal.meta, cacheHit: true, time: Date.now() - startTime },
+          metadata: {
+            ...cachedFinal.metadata,
+            cache: {
+              ...(cachedFinal.metadata?.cache || {}),
+              hit: true,
+              key: finalKey,
+            },
+            timings: {
+              ...(cachedFinal.metadata?.timings || {}),
+              totalMs: Date.now() - startedAt,
+            },
+          },
         });
       }
     }
 
-    // Step 4 — Detect page type
-    const { type: pageType, reason } = detectPageType(html);
+    const pageInfo = detectPageType(fetched.html);
+    const markdown = await convert(fetched.html, finalUrl, pageInfo.type);
 
-    // Step 5 — Convert to markdown
-    const markdown = await convert(html, finalUrl, pageType);
-
-    // Build response
-    const result = {
-      url: finalUrl,
+    const responsePayload = {
       markdown,
-      meta: {
-        pageType,
-        reason,
-        contentType,
+      metadata: {
+        requestedUrl,
+        finalUrl,
+        status: fetched.status,
+        contentType: fetched.contentType,
+        pageType: pageInfo.type,
+        reason: pageInfo.reason,
+        cache: {
+          hit: false,
+          key: finalKey,
+          ttlSeconds: CACHE_TTL_SECONDS,
+        },
         markdownLength: markdown.length,
-        cacheHit: false,
-        time: Date.now() - startTime,
+        generatedAt: new Date().toISOString(),
+        timings: {
+          totalMs: Date.now() - startedAt,
+        },
       },
     };
 
-    // Step 6 — Cache the result (under both URLs if redirected)
-    await cacheSet(finalUrl, result);
-    if (finalUrl !== cleanUrl) {
-      await cacheSet(cleanUrl, result);
-    }
-
-    return res.json(result);
-
+    await cacheSet(finalKey, responsePayload, CACHE_TTL_SECONDS);
+    return res.json(responsePayload);
   } catch (err) {
-    console.error('Pipeline error:', err.message);
-    return res.status(500).json({ error: err.message });
+    return next(err);
   }
 });
 

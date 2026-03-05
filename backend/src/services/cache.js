@@ -31,7 +31,7 @@ export async function cacheSet(key, value, ttl= 3600) {
     await redis.set(key, JSON.stringify(value), 'EX', ttl);  
   } catch (err) {
     console.error('Cache SET error:', err.message);
-    //failure to cache is not fatal— the next request just re-computes
+    //failure to cache is not fatal— the next request just re-computesh
   }
 }
 
