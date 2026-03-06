@@ -111,7 +111,7 @@ router.post('/convert', limiter, async (req, res, next) => {
     await cacheSet(finalKey, responsePayload, CACHE_TTL_SECONDS);
     return res.json(responsePayload);
   } catch (err) {
-    //if the site blocked axios(403), retry with puppeteer(real chrome)
+    //if the site blocked axios(403), retry with puppeteer
     if (err.status === 403) {
       try {
         const markdown = await convertBrowser(requestedUrl);
