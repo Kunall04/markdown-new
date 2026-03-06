@@ -8,7 +8,7 @@ import { stripImages, appendLinksSummary } from '../utils/markdownTransforms.js'
 import { cacheGet, cacheSet } from '../services/cache.js';
 import { fetchPage } from '../services/fetcher.js';
 import { detectPageType } from '../services/detector.js';
-import { convert, renderBrowserHTML } from '../services/converter.js';
+import { convert, renderBrowserHTML, sanitizeHTML } from '../services/converter.js';
 
 const router = express.Router();
 const CACHE_TTL_SECONDS = 3600;
@@ -98,6 +98,7 @@ async function handleConvert(req, res, next) {
       };
     } else {
       let html = fetched.body;
+      html = sanitizeHTML(html);
 
       //f3: css selector target/scope html
       if (options.selector) {
@@ -158,7 +159,7 @@ async function handleConvert(req, res, next) {
     if (err.status === 403) {
       try {
         const renderedHTML = await renderBrowserHTML(requestedUrl);
-        let html = renderedHTML;
+        let html = sanitizeHTML(renderedHTML);
 
         //f3: apply selector
         if (options.selector) {
@@ -166,8 +167,8 @@ async function handleConvert(req, res, next) {
           if (scoped) html = scoped;
         }
 
-        const pageInfo = detectPageType(html);
-        let markdown = await convert(html, requestedUrl, pageInfo.type);
+        //always use COMPLEX for 403 fallback — Readability + content container scoping
+        let markdown = await convert(html, requestedUrl, 'COMPLEX');
 
         //f1: frontmatter
         if (options.frontmatter) {

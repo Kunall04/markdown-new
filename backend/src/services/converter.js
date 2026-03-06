@@ -6,6 +6,32 @@ import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 puppeteer.use(StealthPlugin());
 
+//strip non-content el
+export function sanitizeHTML(html) {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  const selectors = [
+    'script', 'style', 'noscript', 'link[rel="stylesheet"]',
+    'svg', 'nav', 'footer',
+    'iframe', 'object', 'embed',
+    '[hidden]', '[aria-hidden="true"]',
+  ];
+
+  for (const sel of selectors) {
+    doc.querySelectorAll(sel).forEach(el => el.remove());
+  }
+
+  doc.querySelectorAll('[style]').forEach(el => {
+    const s = el.getAttribute('style') || '';
+    if (/display\s*:\s*none|visibility\s*:\s*hidden|position\s*:\s*absolute.*?(?:left|top)\s*:\s*-\d/i.test(s)) {
+      el.remove();
+    }
+  });
+
+  return doc.documentElement.outerHTML;
+}
+
 //turndown setup
 const turndown = new TurndownService({
   headingStyle: 'atx',         //# Heading
@@ -30,15 +56,25 @@ export function convertSimple(html) {
 
 //COMPLEX— readability + turndown(~300ms)
 export function convertComplex(html, url) {
+  //grab content container before Readability mutates the DOM
   const dom = new JSDOM(html, { url });
-  const reader = new Readability(dom.window.document);
+  const doc = dom.window.document;
+  const contentEl = doc.querySelector('main, article, [role="main"]');
+  const scopedHtml = contentEl ? contentEl.innerHTML : null;
+
+  const reader = new Readability(doc);
   const article = reader.parse();
 
-  if (!article || !article.content) {
-    return convertSimple(html);
+  if (article && article.content) {
+    return postProcess(turndown.turndown(article.content));
   }
 
-  return postProcess(turndown.turndown(article.content));
+  //readability failed — use content container if found
+  if (scopedHtml) {
+    return postProcess(turndown.turndown(scopedHtml));
+  }
+
+  return convertSimple(html);
 }
 
 //BROWSER RENDER — launches puppeteer, returns raw HTML string
