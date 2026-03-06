@@ -13,7 +13,7 @@ export function sanitizeHTML(html) {
 
   const selectors = [
     'script', 'style', 'noscript', 'link[rel="stylesheet"]',
-    'svg', 'nav', 'footer',
+    'svg', 'nav', 'footer', 'header',
     'iframe', 'object', 'embed',
     '[hidden]', '[aria-hidden="true"]',
   ];
@@ -22,11 +22,18 @@ export function sanitizeHTML(html) {
     doc.querySelectorAll(sel).forEach(el => el.remove());
   }
 
+  //strip elements hidden via inline styles (font-loading probes, hidden UI)
   doc.querySelectorAll('[style]').forEach(el => {
     const s = el.getAttribute('style') || '';
     if (/display\s*:\s*none|visibility\s*:\s*hidden|position\s*:\s*absolute.*?(?:left|top)\s*:\s*-\d/i.test(s)) {
       el.remove();
     }
+  });
+
+  //strip SVG icon images (always decorative)
+  doc.querySelectorAll('img').forEach(el => {
+    const src = el.getAttribute('src') || '';
+    if (src.endsWith('.svg') || src.includes('.svg?')) el.remove();
   });
 
   return doc.documentElement.outerHTML;
@@ -125,6 +132,7 @@ export async function convert(html, url, pageType) {
 //clean up
 export function postProcess(markdown) {
   return markdown
+    .replace(/\[\s*\]\([^)]*\)/g, '')              //empty links [](url) from stripped SVGs
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
