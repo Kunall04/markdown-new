@@ -23,11 +23,9 @@ function buildCacheKey(url, options = {}) {
   return parts.join(':');
 }
 
-// shared handler for both GET and POST
 async function handleConvert(req, res, next) {
   const startedAt = Date.now();
 
-  // parse url + options from body (POST) or query (GET)
   const { url: rawUrl, options } = parseRequest(req);
 
   const validation = sanitizeURL(rawUrl);
@@ -86,8 +84,8 @@ async function handleConvert(req, res, next) {
       }
     }
 
-    // conversion pipeline
-    const originalHtml = fetched.body; // preserved for meta extraction
+    //conversion pipeline
+    const originalHtml = fetched.body; //preserved for meta extraction
     let markdown;
     let pageInfo;
 
@@ -118,12 +116,12 @@ async function handleConvert(req, res, next) {
       if (fm) markdown = fm + markdown;
     }
 
-    // Feature 2: image removal
+    //f2: image removal
     if (!options.images) {
       markdown = stripImages(markdown);
     }
 
-    // Feature 5: links summary
+    //f5: links
     if (options.links) {
       markdown = appendLinksSummary(markdown);
     }
@@ -162,7 +160,7 @@ async function handleConvert(req, res, next) {
         const renderedHTML = await renderBrowserHTML(requestedUrl);
         let html = renderedHTML;
 
-        // Feature 3: apply selector to rendered HTML
+        //f3: apply selector
         if (options.selector) {
           const scoped = applySelector(html, options.selector);
           if (scoped) html = scoped;
@@ -219,7 +217,7 @@ async function handleConvert(req, res, next) {
   }
 }
 
-//f4: both method use same handler
+//f4: both use same handler
 router.get('/convert',  limiter, handleConvert);
 router.post('/convert', limiter, handleConvert);
 
