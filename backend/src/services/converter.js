@@ -41,8 +41,8 @@ export function convertComplex(html, url) {
   return postProcess(turndown.turndown(article.content));
 }
 
-//JS HEAVY— puppeteer + readability + turndown (~2000ms)
-export async function convertBrowser(url) {
+//BROWSER RENDER — launches puppeteer, returns raw HTML string
+export async function renderBrowserHTML(url) {
   let browser = null;
   try {
     browser = await puppeteer.launch({
@@ -54,17 +54,22 @@ export async function convertBrowser(url) {
 
     await page.goto(url, {
       waitUntil: 'networkidle2',   //≤2 for 500ms
-      timeout: 30000,         
+      timeout: 30000,
     });
 
-    const renderedHTML = await page.content();
-    return convertComplex(renderedHTML, url);
+    return await page.content();
 
   } catch (err) {
-    throw new Error(`Browser conversion failed: ${err.message}`);
+    throw new Error(`Browser render failed: ${err.message}`);
   } finally {
     if(browser) await browser.close();   //close**
   }
+}
+
+//JS HEAVY— puppeteer + readability + turndown (~2000ms)
+export async function convertBrowser(url) {
+  const renderedHTML = await renderBrowserHTML(url);
+  return convertComplex(renderedHTML, url);
 }
 
 //entry point

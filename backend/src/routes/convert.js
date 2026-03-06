@@ -1,30 +1,45 @@
 import express from 'express';
 import limiter from '../middleware/rateLimiter.js';
 import { sanitizeURL } from '../utils/sanitize.js';
+import { parseRequest } from '../utils/parseOptions.js';
+import { extractMeta, buildFrontmatter } from '../utils/extractMeta.js';
+import { applySelector } from '../utils/applySelector.js';
+import { stripImages, appendLinksSummary } from '../utils/markdownTransforms.js';
 import { cacheGet, cacheSet } from '../services/cache.js';
 import { fetchPage } from '../services/fetcher.js';
 import { detectPageType } from '../services/detector.js';
-import { convert, convertBrowser } from '../services/converter.js';
+import { convert, renderBrowserHTML } from '../services/converter.js';
 
 const router = express.Router();
 const CACHE_TTL_SECONDS = 3600;
 
-function buildCacheKey(url) {
-  return `md:${url}`;
+// options-aware cache key — fixed suffix order so key is deterministic
+function buildCacheKey(url, options = {}) {
+  const parts = [`md:${url}`];
+  if (options.frontmatter)      parts.push('fm');
+  if (options.images === false)  parts.push('noimg');
+  if (options.selector)         parts.push(`sel:${options.selector}`);
+  if (options.links)            parts.push('links');
+  return parts.join(':');
 }
 
-router.post('/convert', limiter, async (req, res, next) => {
+// shared handler for both GET and POST
+async function handleConvert(req, res, next) {
   const startedAt = Date.now();
 
-  const validation = sanitizeURL(req.body?.url);
+  // parse url + options from body (POST) or query (GET)
+  const { url: rawUrl, options } = parseRequest(req);
+
+  const validation = sanitizeURL(rawUrl);
   if (!validation.valid) {
     return res.status(400).json({ error: validation.reason });
   }
 
   const requestedUrl = validation.url;
-  const requestedKey = buildCacheKey(requestedUrl);
+  const requestedKey = buildCacheKey(requestedUrl, options);
 
   try {
+    //cache check
     const cachedRequested = await cacheGet(requestedKey);
     if (cachedRequested) {
       return res.json({
@@ -44,10 +59,12 @@ router.post('/convert', limiter, async (req, res, next) => {
       });
     }
 
+    //fetch page
     const fetched = await fetchPage(requestedUrl);
     const finalUrl = sanitizeURL(fetched.finalUrl).url || fetched.finalUrl;
-    const finalKey = buildCacheKey(finalUrl);
+    const finalKey = buildCacheKey(finalUrl, options);
 
+    //cache check(after redirects)
     if (finalKey !== requestedKey) {
       const cachedFinal = await cacheGet(finalKey);
       if (cachedFinal) {
@@ -69,22 +86,49 @@ router.post('/convert', limiter, async (req, res, next) => {
       }
     }
 
+    // conversion pipeline
+    const originalHtml = fetched.body; // preserved for meta extraction
     let markdown;
     let pageInfo;
 
     if (fetched.isMarkdown) {
-      //cf returned md
-      //skip conversion
+      //cf returned md— skip conversion + selector + frontmatter
       markdown = fetched.body;
       pageInfo = {
         type: 'CLOUDFLARE_MD',
         reason: 'Cloudflare Markdown for Agents— no conversion needed',
       };
     } else {
-      pageInfo = detectPageType(fetched.body);
-      markdown = await convert(fetched.body, finalUrl, pageInfo.type);
+      let html = fetched.body;
+
+      //f3: css selector target/scope html
+      if (options.selector) {
+        const scoped = applySelector(html, options.selector);
+        if (scoped) html = scoped;
+      }
+
+      pageInfo = detectPageType(html);
+      markdown = await convert(html, finalUrl, pageInfo.type);
     }
 
+    //f1: yaml
+    if (options.frontmatter && pageInfo.type !== 'CLOUDFLARE_MD') {
+      const meta = extractMeta(originalHtml);
+      const fm = buildFrontmatter(meta);
+      if (fm) markdown = fm + markdown;
+    }
+
+    // Feature 2: image removal
+    if (!options.images) {
+      markdown = stripImages(markdown);
+    }
+
+    // Feature 5: links summary
+    if (options.links) {
+      markdown = appendLinksSummary(markdown);
+    }
+
+    // build response
     const responsePayload = {
       markdown,
       metadata: {
@@ -110,11 +154,41 @@ router.post('/convert', limiter, async (req, res, next) => {
 
     await cacheSet(finalKey, responsePayload, CACHE_TTL_SECONDS);
     return res.json(responsePayload);
+
   } catch (err) {
-    //if the site blocked axios(403), retry with puppeteer
+    //if 403, retry with puppeteer
     if (err.status === 403) {
       try {
-        const markdown = await convertBrowser(requestedUrl);
+        const renderedHTML = await renderBrowserHTML(requestedUrl);
+        let html = renderedHTML;
+
+        // Feature 3: apply selector to rendered HTML
+        if (options.selector) {
+          const scoped = applySelector(html, options.selector);
+          if (scoped) html = scoped;
+        }
+
+        const pageInfo = detectPageType(html);
+        let markdown = await convert(html, requestedUrl, pageInfo.type);
+
+        //f1: frontmatter
+        if (options.frontmatter) {
+          const meta = extractMeta(renderedHTML);
+          const fm = buildFrontmatter(meta);
+          if(fm) markdown= fm + markdown;
+        }
+
+        //f2: image remove
+        if (!options.images) {
+          markdown = stripImages(markdown);
+        }
+
+        //f5: links
+        if (options.links) {
+          markdown = appendLinksSummary(markdown);
+        }
+
+        const fallbackKey = buildCacheKey(requestedUrl, options);
         const responsePayload = {
           markdown,
           metadata: {
@@ -126,7 +200,7 @@ router.post('/convert', limiter, async (req, res, next) => {
             reason: '403 blocked — retried with Puppeteer',
             cache: {
               hit: false,
-              key: buildCacheKey(requestedUrl),
+              key: fallbackKey,
               ttlSeconds: CACHE_TTL_SECONDS,
             },
             markdownLength: markdown.length,
@@ -134,7 +208,8 @@ router.post('/convert', limiter, async (req, res, next) => {
             timings: { totalMs: Date.now() - startedAt },
           },
         };
-        await cacheSet(buildCacheKey(requestedUrl), responsePayload, CACHE_TTL_SECONDS);
+
+        await cacheSet(fallbackKey, responsePayload, CACHE_TTL_SECONDS);
         return res.json(responsePayload);
       } catch (browserErr) {
         return next(browserErr);
@@ -142,6 +217,10 @@ router.post('/convert', limiter, async (req, res, next) => {
     }
     return next(err);
   }
-});
+}
+
+//f4: both method use same handler
+router.get('/convert',  limiter, handleConvert);
+router.post('/convert', limiter, handleConvert);
 
 export default router;
