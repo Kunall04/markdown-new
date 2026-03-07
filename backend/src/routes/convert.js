@@ -97,8 +97,9 @@ async function handleConvert(req, res, next) {
         reason: 'Cloudflare Markdown for Agents— no conversion needed',
       };
     } else {
-      let html = fetched.body;
-      html = sanitizeHTML(html);
+      //detect on ORIGINAL html — sanitized html has 0 scripts, misclassifies SPAs
+      pageInfo = detectPageType(fetched.body);
+      let html = sanitizeHTML(fetched.body);
 
       //f3: css selector target/scope html
       if (options.selector) {
@@ -106,7 +107,6 @@ async function handleConvert(req, res, next) {
         if (scoped) html = scoped;
       }
 
-      pageInfo = detectPageType(html);
       markdown = await convert(html, finalUrl, pageInfo.type);
     }
 

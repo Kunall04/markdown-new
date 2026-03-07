@@ -15,14 +15,14 @@ export function sanitizeHTML(html) {
     'script', 'style', 'noscript', 'link[rel="stylesheet"]',
     'svg', 'nav', 'footer', 'header',
     'iframe', 'object', 'embed',
-    '[hidden]', '[aria-hidden="true"]',
+    '[aria-hidden="true"]',
   ];
 
   for (const sel of selectors) {
     doc.querySelectorAll(sel).forEach(el => el.remove());
   }
 
-  //strip elements hidden via inline styles (font-loading probes, hidden UI)
+  //strip elements hidden via inline styles
   doc.querySelectorAll('[style]').forEach(el => {
     const s = el.getAttribute('style') || '';
     if (/display\s*:\s*none|visibility\s*:\s*hidden|position\s*:\s*absolute.*?(?:left|top)\s*:\s*-\d/i.test(s)) {
@@ -62,6 +62,8 @@ export function convertSimple(html) {
 }
 
 //COMPLEX— readability + turndown(~300ms)
+const MIN_READABILITY_LENGTH = 500;
+
 export function convertComplex(html, url) {
   //grab content container before Readability mutates the DOM
   const dom = new JSDOM(html, { url });
@@ -72,16 +74,28 @@ export function convertComplex(html, url) {
   const reader = new Readability(doc);
   const article = reader.parse();
 
-  if (article && article.content) {
-    return postProcess(turndown.turndown(article.content));
+  const readabilityMd = article?.content? postProcess(turndown.turndown(article.content)): null;
+
+  const containerMd = scopedHtml? postProcess(turndown.turndown(scopedHtml)) : null;
+
+  //if Readability produced a solid result, use it
+  if (readabilityMd && readabilityMd.length >= MIN_READABILITY_LENGTH) {
+    return readabilityMd;
   }
 
-  //readability failed — use content container if found
-  if (scopedHtml) {
-    return postProcess(turndown.turndown(scopedHtml));
+  //both short or one missing — get full-page simple conversion too
+  const bestScoped = [readabilityMd, containerMd]
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)[0];
+
+  const simpleMd = convertSimple(html);
+
+  //pick whichever produced the most content
+  if (bestScoped && bestScoped.length >= simpleMd.length) {
+    return bestScoped;
   }
 
-  return convertSimple(html);
+  return simpleMd;
 }
 
 //BROWSER RENDER — launches puppeteer, returns raw HTML string
@@ -112,7 +126,8 @@ export async function renderBrowserHTML(url) {
 //JS HEAVY— puppeteer + readability + turndown (~2000ms)
 export async function convertBrowser(url) {
   const renderedHTML = await renderBrowserHTML(url);
-  return convertComplex(renderedHTML, url);
+  const cleanedHTML = sanitizeHTML(renderedHTML);
+  return convertComplex(cleanedHTML, url);
 }
 
 //entry point
