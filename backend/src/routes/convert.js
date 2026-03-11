@@ -97,7 +97,7 @@ async function handleConvert(req, res, next) {
         reason: 'Cloudflare Markdown for Agents— no conversion needed',
       };
     } else {
-      //detect on ORIGINAL html — sanitized html has 0 scripts, misclassifies SPAs
+      //detect on ORIGINAL html— sanitized html has 0 scripts, misclassifies SPAs
       pageInfo = detectPageType(fetched.body);
       let html = sanitizeHTML(fetched.body);
 
