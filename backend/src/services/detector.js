@@ -28,7 +28,7 @@ export function detectPageType(html) {
 
     const isThinContent=contentlength<1000;
 
-    //empty SPA shell — needs Puppeteer regardless of script count
+    //empty SPA
     if(hasEmptyRoot && (hasModuleScript || isjsFramework)) {
         return {
             type: 'JS_HEAVY',
