@@ -137,8 +137,22 @@ export async function convert(html, url, pageType) {
       return convertSimple(html);
     case 'COMPLEX':
       return convertComplex(html, url);
-    case 'JS_HEAVY':
-      return await convertBrowser(url);
+    case 'JS_HEAVY': {
+      try {
+        return await convertBrowser(url);
+      } catch (err) {
+        const message = err?.message || '';
+        const browserUnavailable =
+          message.includes('Could not find Chrome') ||
+          message.includes('Browser render failed');
+
+        if (browserUnavailable) {
+          // Graceful fallback for environments where Chromium is unavailable.
+          return convertComplex(html, url);
+        }
+        throw err;
+      }
+    }
     default:
       return convertComplex(html, url);   //safe default
   }

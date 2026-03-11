@@ -4,6 +4,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
+    "postinstall": "npx puppeteer browsers install chrome", 
     "start": "node src/server.js",
     "dev": "node --watch src/server.js"
   },
