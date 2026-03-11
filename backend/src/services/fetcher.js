@@ -70,9 +70,15 @@ export async function fetchPage(url) {
       throw new Error('Request timed out — site took too long to respond');
     }
     if (err.response?.status === 403) {
-      const blocked = new Error('Site blocked our request (403 Forbidden)');
-      blocked.status = 403;
-      throw blocked;
+      // Some sites reject markdown-oriented Accept headers; retry as a normal browser.
+      try {
+        const retry = await axios.get(url, buildAxiosConfig(STANDARD_ACCEPT));
+        return buildResult(retry, url);
+      } catch (retryErr) {
+        const blocked = new Error('Site blocked our request (403 Forbidden)');
+        blocked.status = 403;
+        throw blocked;
+      }
     }
     //some sites 404 on text/markdown accept— retried with standard header
     if (err.response?.status === 404) {

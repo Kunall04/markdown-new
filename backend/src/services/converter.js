@@ -147,7 +147,6 @@ export async function convert(html, url, pageType) {
           message.includes('Browser render failed');
 
         if (browserUnavailable) {
-          // Graceful fallback for environments where Chromium is unavailable.
           return convertComplex(html, url);
         }
         throw err;
