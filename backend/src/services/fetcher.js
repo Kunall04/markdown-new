@@ -1,4 +1,5 @@
 import axios from 'axios';
+import https from 'https';
 
 //pretend
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -17,6 +18,16 @@ function buildAxiosConfig(accept) {
     maxRedirects: 5,
     responseType: 'text',
   };
+}
+
+function isTlsCertError(err) {
+  const tlsCodes = new Set([
+    'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+    'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+    'SELF_SIGNED_CERT_IN_CHAIN',
+    'DEPTH_ZERO_SELF_SIGNED_CERT',
+  ]);
+  return tlsCodes.has(err?.code);
 }
 
 function buildResult(response, url) {
@@ -41,6 +52,20 @@ export async function fetchPage(url) {
     return buildResult(response, url);
 
   } catch (err) {
+
+    if (isTlsCertError(err)) {
+      try {
+        const insecureConfig = {
+          ...buildAxiosConfig(MARKDOWN_ACCEPT),
+          httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+        };
+        const retry = await axios.get(url, insecureConfig);
+        return buildResult(retry, url);
+      } catch {
+        throw new Error('TLS certificate validation failed for target URL');
+      }
+    }
+
     if (err.code === 'ECONNABORTED') {
       throw new Error('Request timed out — site took too long to respond');
     }
@@ -49,7 +74,7 @@ export async function fetchPage(url) {
       blocked.status = 403;
       throw blocked;
     }
-    //some sites 404 on text/markdown Accept — retry with standard header
+    //some sites 404 on text/markdown accept— retried with standard header
     if (err.response?.status === 404) {
       try {
         const retry = await axios.get(url, buildAxiosConfig(STANDARD_ACCEPT));
