@@ -50,7 +50,6 @@ export function detectPageType(html) {
         };
     }
 
-    //thin content with module scripts — almost certainly an SPA
     if(isThinContent && hasModuleScript) {
         return {
             type: 'JS_HEAVY',
@@ -70,11 +69,3 @@ export function detectPageType(html) {
         reason: `${scriptTags} script tags — clean static HTML`,
     };
 }
-
-// const simple = '<html><body><h1>Hello</h1><p>Simple page</p></body></html>';
-// const complex = '<html>' + Array(7).fill('<script>x</script>').join('') + '<body><p>Article</p></body></html>';
-// const jsHeavy = Array(12).fill('<script>x</script>').join('') + '<div id="__NEXT_DATA__"></div>';
-
-// console.log(detectPageType(simple));   // SIMPLE
-// console.log(detectPageType(complex));  // COMPLEX
-// console.log(detectPageType(jsHeavy)); // JS_HEAVY
