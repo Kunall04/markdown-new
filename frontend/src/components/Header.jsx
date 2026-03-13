@@ -6,11 +6,11 @@ export default function Header() {
         <p className="tagline">Clean markdown from any URL.</p>
       </div>
       <div className="top-links">
-        <a href="/api/convert?url=https://example.com" target="_blank" rel="noreferrer">
+        {/* <a href="/api/convert?url=https://example.com" target="_blank" rel="noreferrer">
           API
-        </a>
+        </a> */}
         <a href="https://github.com/Kunall04/markdown-new" target="_blank" rel="noreferrer">
-          Docs
+          Github
         </a>
       </div>
     </header>
