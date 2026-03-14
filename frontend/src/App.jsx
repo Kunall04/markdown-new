@@ -5,15 +5,24 @@ import InputSection from './components/InputSection';
 import LoadingSteps from './components/LoadingSteps';
 import EmptyState from './components/EmptyState';
 import ResultView from './components/ResultView';
+import { convertUrl } from './api/convert';
 
 
 const SHOW_FULL_METADATA = false;
+const DEFAULT_OPTIONS = {
+  frontmatter: false,
+  images: true,
+  links: false,
+  selectorEnabled: false,
+  selector: '',
+};
 
 export default function App() {
   const [url, setUrl] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [options, setOptions] = useState(DEFAULT_OPTIONS);
 
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState(0);
@@ -44,20 +53,14 @@ export default function App() {
     setError('');
 
     try {
-      const response = await fetch('/api/convert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl }),
+      const data = await convertUrl(targetUrl, {
+        frontmatter: options.frontmatter,
+        images: options.images,
+        links: options.links,
+        selector: options.selectorEnabled ? options.selector.trim() : null,
       });
 
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(data.error || data.details || 'Conversion failed.');
-      }
-
       setResult(data);
-
     } catch (err) {
       setError(err.message || 'Something went wrong.');
     } finally {
@@ -74,6 +77,8 @@ export default function App() {
         <InputSection
           url={url}
           setUrl={setUrl}
+          options={options}
+          setOptions={setOptions}
           loading={loading}
           onConvert={() => handleConvert()}
         />

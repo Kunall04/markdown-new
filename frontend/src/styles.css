@@ -168,6 +168,11 @@ input {
   letter-spacing: 0.01em;
 }
 
+.flag:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .flag.active {
   border-color: var(--accent);
   color: #c9f2ee;
@@ -175,6 +180,7 @@ input {
 }
 
 .selector-input {
+  width: 100%;
   border: 1px solid var(--border-strong);
   background: #0e1114;
   color: var(--text);
