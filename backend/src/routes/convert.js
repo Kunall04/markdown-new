@@ -23,7 +23,7 @@ function buildCacheKey(url, options = {}) {
   return parts.join(':');
 }
 
-export async function handleConvert(req, res, next) {
+async function handleConvert(req, res, next) {
   const startedAt = Date.now();
 
   const { url: rawUrl, options } = parseRequest(req);
