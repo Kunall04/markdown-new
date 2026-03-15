@@ -33,11 +33,28 @@ function isTlsCertError(err) {
   return tlsCodes.has(err?.code);
 }
 
+
+function isCloudflareChallenged(html) {
+  if (typeof html !== 'string' || html.length > 50000) return false; // real pages are larger
+  return (
+    html.includes('cf_chl_opt') ||
+    html.includes('cf-browser-verification') ||
+    (html.includes('Just a moment') && html.includes('Cloudflare')) ||
+    (html.includes('Performing security verification') && html.includes('cloudflare'))
+  );
+}
+
 function buildResult(response, url) {
   const contentType = response.headers['content-type'] || '';
   const isMarkdown = contentType.includes('text/markdown');
   const rawTokens = response.headers['x-markdown-tokens'];
   const markdownTokens = rawTokens ? parseInt(rawTokens, 10) || null : null;
+
+  if (!isMarkdown && isCloudflareChallenged(response.data)) {
+    const err = new Error('This site is Cloudflare-protected and blocked server-side requests - try opening it in a browser');
+    err.status = 403;
+    throw err;
+  }
 
   return {
     body: response.data,
