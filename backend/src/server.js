@@ -15,7 +15,6 @@ app.use(cors({
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type'],
 }));
-app.options('*', cors()); //handle preflight explicitly for all routes
 app.use(express.json());   
 
 app.get('/health',(req,res)=>{
