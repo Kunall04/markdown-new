@@ -151,7 +151,9 @@ async function handleConvert(req, res, next) {
       },
     };
 
-    await cacheSet(finalKey, responsePayload, CACHE_TTL_SECONDS);
+    if (markdown.length >= 50) {
+      await cacheSet(finalKey, responsePayload, CACHE_TTL_SECONDS);
+    }
     return res.json(responsePayload);
 
   } catch (err) {
@@ -208,7 +210,9 @@ async function handleConvert(req, res, next) {
           },
         };
 
-        await cacheSet(fallbackKey, responsePayload, CACHE_TTL_SECONDS);
+        if (markdown.length >= 50) {
+          await cacheSet(fallbackKey, responsePayload, CACHE_TTL_SECONDS);
+        }
         return res.json(responsePayload);
       } catch (browserErr) {
         return next(browserErr);

@@ -1,11 +1,12 @@
 import axios from 'axios';
-import https from 'https';
 
 //pretend
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 const MARKDOWN_ACCEPT = 'text/markdown, text/html;q=0.9,application/xhtml+xml;q=0.8,application/xml;q=0.7,*/*;q=0.6';
 const STANDARD_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
+
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 function buildAxiosConfig(accept) {
   return {
@@ -17,6 +18,8 @@ function buildAxiosConfig(accept) {
     timeout: 10000,
     maxRedirects: 5,
     responseType: 'text',
+    maxContentLength: MAX_RESPONSE_BYTES,
+    maxBodyLength: MAX_RESPONSE_BYTES,
   };
 }
 
@@ -54,23 +57,14 @@ export async function fetchPage(url) {
   } catch (err) {
 
     if (isTlsCertError(err)) {
-      try {
-        const insecureConfig = {
-          ...buildAxiosConfig(MARKDOWN_ACCEPT),
-          httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-        };
-        const retry = await axios.get(url, insecureConfig);
-        return buildResult(retry, url);
-      } catch {
-        throw new Error('TLS certificate validation failed for target URL');
-      }
+      throw new Error('TLS certificate validation failed for target URL — the site has an invalid or self-signed certificate');
     }
 
     if (err.code === 'ECONNABORTED') {
       throw new Error('Request timed out — site took too long to respond');
     }
     if (err.response?.status === 403) {
-      // Some sites reject markdown-oriented Accept headers; retry as a normal browser.
+      //some sites rejected md oriented accept headers retried as a normal browser
       try {
         const retry = await axios.get(url, buildAxiosConfig(STANDARD_ACCEPT));
         return buildResult(retry, url);

@@ -1,6 +1,11 @@
 
 function buildApiPath() {
   const base = import.meta.env.VITE_API_BASE || '';
+  if (!base && import.meta.env.PROD) {
+    throw new Error(
+      'VITE_API_BASE is not set'
+    );
+  }
   return `${base.replace(/\/$/, '')}/api/convert`;
 }
 
