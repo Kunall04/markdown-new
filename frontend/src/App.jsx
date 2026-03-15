@@ -43,12 +43,23 @@ export default function App() {
     return () => clearInterval(timer);
   }, [loading]);
 
+  //mkdn.tech/....  autoconvert
+  useEffect(() => {
+    const raw = window.location.pathname.slice(1);
+    if (!raw) return;
+    const normalised = raw.replace(/^(https?:\/)([^/])/, '$1/$2');
+    if (/^https?:\/\//.test(normalised)) {
+      handleConvert(normalised);
+    }
+  }, []);
+
   async function handleConvert(inputUrl) {
     const targetUrl = (inputUrl || url).trim();
     if (!targetUrl || loading) return;
 
     setUrl(targetUrl);
-    setLoading(true);
+
+    window.history.replaceState(null, '', '/' + targetUrl);  //via mkdn.tech/<url>
     setResult(null);
     setError('');
 
