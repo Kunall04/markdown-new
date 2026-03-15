@@ -10,7 +10,12 @@ const PORT=process.env.PORT || 3001;
 
 app.set('trust proxy', 1); //for railway
 
-app.use(cors());    
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+}));
+app.options('*', cors()); //handle preflight explicitly for all routes
 app.use(express.json());   
 
 app.get('/health',(req,res)=>{
