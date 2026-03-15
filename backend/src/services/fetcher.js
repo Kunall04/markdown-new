@@ -15,7 +15,7 @@ function buildAxiosConfig(accept) {
       'Accept': accept,
       'Accept-Language': 'en-US,en;q=0.5',
     },
-    timeout: 10000,
+    timeout: 20000,
     maxRedirects: 5,
     responseType: 'text',
     maxContentLength: MAX_RESPONSE_BYTES,

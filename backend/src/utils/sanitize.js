@@ -1,4 +1,4 @@
-import net from 'net';
+import { isIPv4 } from 'node:net';
 
 //block requests to private/internal ip for ssrf attacks
 function isPrivateHost(hostname) {
@@ -7,7 +7,7 @@ function isPrivateHost(hostname) {
   if (h === 'localhost' || h === '0.0.0.0') return true;
   if (h === '::1' || h === '::' || h.startsWith('fe80:') || h.startsWith('fd')) return true;
 
-  if (net.isIPv4(h)) {
+  if (isIPv4(h)) {
     const [a, b] = h.split('.').map(Number);
     if (a === 127) return true;                              //127.x.x.x loopback
     if (a === 10) return true;                               //10.x.x.x private

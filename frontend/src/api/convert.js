@@ -27,7 +27,7 @@ export async function convertUrl(url, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || data.details || 'Conversion failed.');
+    throw new Error(data.details || data.error || 'Conversion failed.');
   }
 
   return data;
