@@ -1,4 +1,5 @@
 :root {
+  font-size: 16px;
   color-scheme: dark;
   --bg: #111315;
   --panel: #161a1d;
@@ -48,7 +49,7 @@ input {
 }
 
 .app-shell {
-  width: min(1050px, 92vw);
+  width: min(860px, 92vw);
   margin: 0 auto;
   padding: 1.75rem 0 3rem;
 }
